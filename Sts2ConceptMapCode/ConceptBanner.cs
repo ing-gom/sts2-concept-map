@@ -92,7 +92,7 @@ internal sealed partial class ConceptBanner : PanelContainer
         _hasConcept = c != null;
         if (c != null && _label != null)
         {
-            _label.Text = ConceptMapService.LabelOf(c);
+            _label.Text = $"{ConceptMapService.LabelOf(c)} {ConceptMapService.RomanLevel(ConceptMapService.CurrentLevel())}";
             _label.AddThemeColorOverride("font_color", TierColor[Math.Clamp(c.Tier - 1, 0, 2)]);
         }
     }

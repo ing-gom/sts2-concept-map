@@ -35,6 +35,9 @@ Node assignment is pure per-node randomness (so dominant concepts clump characte
 [*][b]Treasure cap[/b] — each treasure room grants a free relic, so the number of extra treasure rooms is capped; overflow becomes shops (buy relics with gold). Generous "loot routes" without flooding the run with relics.
 [/list]
 
+[size=4][b]Difficulty levels (I / II / III)[/b][/size]
+Each map also rolls a difficulty [b]level[/b], shown as a Roman numeral after the concept name (e.g. Elite Gauntlet III). The level scales how hard the concept's penalty bites — III is the full penalty (Elite Gauntlet III has no normal monsters), I softens it. Rolled randomly but weighted by act, so it trends up over the run while still varying. Separate from a concept's tier (which gates when it appears).
+
 [size=4][b]Concept banner[/b][/size]
 A small banner names the current map's concept, tinted by difficulty tier (green / amber / red). It's [b]draggable[/b] (left-click drag; position saved) and shows only on the map screen. Names are localized in [b]16 languages[/b].
 

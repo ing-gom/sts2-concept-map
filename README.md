@@ -51,6 +51,12 @@ A small banner names the current map's concept, tinted by difficulty tier (green
 
 Names are **localized in 16 languages** (EN, KO, JA, zh-CN, zh-TW, FR, DE, ES, IT, RU, PT-BR, PT, PL, TR, TH).
 
+### Difficulty levels (Ⅰ / Ⅱ / Ⅲ)
+
+Each map also rolls a difficulty **level**, shown as a Roman numeral after the concept name (e.g. *Elite Gauntlet Ⅲ*). The level scales how hard the concept's penalty bites — **Ⅲ** is the full penalty (Elite Gauntlet Ⅲ has *no* normal monsters), **Ⅰ** softens it (a few leak back). The level is rolled randomly but weighted by act, so it trends up over the run while still varying (you might meet a level-Ⅰ Gauntlet in Act 3, or a level-Ⅲ Storyteller in Act 1).
+
+This is separate from a concept's **tier** (which gates *when* a concept appears): tier = availability, level = intensity.
+
 ### Treasure-map (Spoils) event
 
 The treasure-map event builds its own hourglass map; concepts apply there too — the central treasure stays fixed, only the paths above and below are themed.

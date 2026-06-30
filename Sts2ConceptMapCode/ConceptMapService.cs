@@ -202,6 +202,44 @@ internal static class ConceptMapService
         _    => new[] { 0.00f, 0.35f, 0.65f },
     };
 
+    // --- Difficulty LEVEL (I / II / III) -------------------------------------------------------
+    // A per-map level scales how hard a concept's PENALTY caps bite: III = full penalty (e.g. Elite
+    // Gauntlet has zero monsters), I = softened (some leak back). Rolled randomly, weighted by act so it
+    // trends up over the run but still varies (a level-I Gauntlet in Act 3, a level-III Storyteller in
+    // Act 1). Each level below III relaxes every penalty cap's max by RelaxStep.
+    private const int RelaxStep = 2;
+
+    private static float[] LevelWeightsForAct(int act) => act switch
+    {
+        <= 0 => new[] { 0.60f, 0.35f, 0.05f },
+        1    => new[] { 0.30f, 0.45f, 0.25f },
+        _    => new[] { 0.10f, 0.35f, 0.55f },
+    };
+
+    /// <summary>Deterministically roll the difficulty level (1..3) for an act.</summary>
+    private static int RollLevel(int act, uint seed)
+    {
+        var rng = new Rng(seed, $"sts2conceptmap_level_act{act}");
+        return PickSlot(LevelWeightsForAct(act), rng) + 1;
+    }
+
+    private static readonly ConditionalWeakTable<ActMap, StrongBox<int>> _mapLevel = new();
+
+    /// <summary>Difficulty level (1..3) of the current act's map, for the banner. Re-derived if absent.</summary>
+    public static int CurrentLevel()
+    {
+        try
+        {
+            var map = RunManager.Instance?.State?.Map;
+            if (map != null && _mapLevel.TryGetValue(map, out var box)) return box.Value;
+            return RollLevel(CurrentAct(), CurrentSeed());
+        }
+        catch { return 3; }
+    }
+
+    /// <summary>Roman numeral I / II / III for a level (1..3).</summary>
+    public static string RomanLevel(int level) => level switch { 1 => "Ⅰ", 2 => "Ⅱ", _ => "Ⅲ" };
+
     // --- Mode (which concept(s) to use) ---------------------------------------------------------
     // _mode == SurpriseKey → roll a concept per map; otherwise it's a concept Key forced on every map.
     private static string _mode = SurpriseKey;
@@ -252,6 +290,8 @@ internal static class ConceptMapService
             uint seed = CurrentSeed();
             var concept = ResolveConcept(act, seed);
             _mapConcept.AddOrUpdate(map, concept);
+            int level = RollLevel(act, seed);
+            _mapLevel.AddOrUpdate(map, new StrongBox<int>(level));
 
             var rng = new Rng(seed, $"sts2conceptmap_assign_act{act}");
             float[] w = EffectiveWeights(concept);
@@ -266,7 +306,7 @@ internal static class ConceptMapService
             int forcedRest = EnsureMinimumRests(modifiable, rng);
             int forcedSig = EnsureGuarantees(concept, modifiable, rng);
             int cappedTrez = CapExcessTreasure(modifiable, rng);
-            int cappedPen = CapTypes(concept, modifiable, rng);
+            int cappedPen = CapTypes(concept, modifiable, rng, level);
 
             // Diagnostic: final type histogram of the modifiable nodes (helps confirm assignment took).
             int mon = 0, ev = 0, rs = 0, el = 0, sh = 0, tr = 0;
@@ -280,7 +320,7 @@ internal static class ConceptMapService
                     case MapPointType.Shop: sh++; break;
                     case MapPointType.Treasure: tr++; break;
                 }
-            LastStats = $"act {act + 1} concept={concept.Key} ({modifiable.Count} free nodes, " +
+            LastStats = $"act {act + 1} concept={concept.Key} Lv{level} ({modifiable.Count} free nodes, " +
                         $"+{forcedRest} rest, +{forcedSig} sig, -{cappedTrez} trez→shop, -{cappedPen} cap) → " +
                         $"Mon={mon} Ev={ev} Rest={rs} Elite={el} Shop={sh} Trez={tr}";
             MainFile.Logger.Info($"[{MainFile.ModId}] {LastStats}");
@@ -421,17 +461,18 @@ internal static class ConceptMapService
     /// has no normal monsters) is reliably felt regardless of the random roll or the rest floor.
     /// Returns how many nodes were converted.
     /// </summary>
-    private static int CapTypes(MapConcept c, List<MapPoint> modifiable, Rng rng)
+    private static int CapTypes(MapConcept c, List<MapPoint> modifiable, Rng rng, int level)
     {
         if (!_caps.TryGetValue(c.Key, out var caps)) return 0;
 
+        int relax = (3 - Math.Clamp(level, 1, 3)) * RelaxStep; // level III = strict (0), I = loosest
         int converted = 0;
         foreach (var (slot, max, fallback) in caps)
         {
             var type = Slot[slot];
             var fb = Slot[fallback];
             var have = modifiable.Where(p => p.PointType == type).ToList();
-            int excess = have.Count - max;
+            int excess = have.Count - (max + relax);
             while (excess > 0 && have.Count > 0)
             {
                 int idx = Math.Min(have.Count - 1, (int)(rng.NextFloat() * have.Count));
