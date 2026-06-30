@@ -81,7 +81,7 @@ internal static class ConceptMapService
         new("trial",    "⚔",      "Trial Road",        2, new[] { 1.2f, 0.7f, 0.8f, 2.2f, 0.6f, 0.8f }),
 
         // ── Tier 3 (hard — Act 3+ mostly) ─────────────────────────────────────────────
-        new("gauntlet", "\U0001F6E1", "Elite Gauntlet",     3, new[] { 0.3f, 0.15f, 0.7f, 6f, 0.2f, 0.4f }),
+        new("gauntlet", "\U0001F6E1", "Elite Gauntlet",     3, new[] { 0.3f, 0.15f, 1.0f, 6f, 0.7f, 0.4f }),
         new("fire",     "\U0001F525", "Trial by Fire",      3, new[] { 1.3f, 0.6f, 0.45f, 3f, 0.4f, 0.6f }),
         new("grinder",  "⚙",      "The Meatgrinder",   3, new[] { 2.2f, 0.3f, 0.3f, 2.5f, 0.3f, 0.4f }),
         new("famine",   "\U0001F3DC", "Famine",             3, new[] { 2f, 0.8f, 0.2f, 1.8f, 0.1f, 0.3f }),
@@ -140,8 +140,21 @@ internal static class ConceptMapService
         ["fire"]       = new[] { (3, 3, 0.30f) },                // elites
         ["grinder"]    = new[] { (3, 3, 0.28f) },                // elites
         ["famine"]     = new[] { (3, 2, 0.15f) },                // some elites amid the attrition
-        ["gauntlet"]   = new[] { (3, 4, 0.45f) },                // elites
+        ["gauntlet"]   = new[] { (3, 4, 0.45f), (2, 4, 0.16f) },  // elites + a rest cadence for recovery
         ["dread"]      = new[] { (3, 4, 0.40f) },                // elites
+    };
+
+    // Penalty / "X-only" UPPER caps: a concept whose identity is the ABSENCE of a room type caps it so a
+    // lucky roll / the rest floor can't hand it back. Each entry is (slot, max, fallbackSlot) — excess of
+    // `slot` becomes `fallbackSlot` (concept-appropriate). Slots: 0 Mon,1 Event,2 Rest,3 Elite,4 Shop,5 Trez.
+    private static readonly Dictionary<string, (int slot, int max, int fallback)[]> _caps = new()
+    {
+        ["gauntlet"]   = new[] { (0, 0, 3) },                        // elites only: no monsters → elite (rest/shop kept for recovery)
+        ["crossroads"] = new[] { (3, 0, 0), (4, 0, 0), (5, 0, 0) },   // mobs + events only: no elite/shop/treasure → monster
+        ["story"]      = new[] { (0, 1, 1), (3, 0, 1) },              // events only: almost no combat → event
+        ["famine"]     = new[] { (2, 2, 0), (4, 1, 0) },              // rest & shop scarce → monster
+        ["grinder"]    = new[] { (2, 2, 0), (4, 2, 0) },              // rest scarce → monster
+        ["dread"]      = new[] { (2, 2, 3), (4, 1, 3) },              // rest & shop scarce → elite
     };
 
     /// <summary>
@@ -253,6 +266,7 @@ internal static class ConceptMapService
             int forcedRest = EnsureMinimumRests(modifiable, rng);
             int forcedSig = EnsureGuarantees(concept, modifiable, rng);
             int cappedTrez = CapExcessTreasure(modifiable, rng);
+            int cappedPen = CapTypes(concept, modifiable, rng);
 
             // Diagnostic: final type histogram of the modifiable nodes (helps confirm assignment took).
             int mon = 0, ev = 0, rs = 0, el = 0, sh = 0, tr = 0;
@@ -267,8 +281,8 @@ internal static class ConceptMapService
                     case MapPointType.Treasure: tr++; break;
                 }
             LastStats = $"act {act + 1} concept={concept.Key} ({modifiable.Count} free nodes, " +
-                        $"+{forcedRest} rest, +{forcedSig} signature, -{cappedTrez} trez→shop) → Mon={mon} " +
-                        $"Ev={ev} Rest={rs} Elite={el} Shop={sh} Trez={tr}";
+                        $"+{forcedRest} rest, +{forcedSig} sig, -{cappedTrez} trez→shop, -{cappedPen} cap) → " +
+                        $"Mon={mon} Ev={ev} Rest={rs} Elite={el} Shop={sh} Trez={tr}";
             MainFile.Logger.Info($"[{MainFile.ModId}] {LastStats}");
         }
         catch (Exception ex)
@@ -397,6 +411,34 @@ internal static class ConceptMapService
             treasures[idx].PointType = MapPointType.Shop;
             treasures.RemoveAt(idx);
             converted++;
+        }
+        return converted;
+    }
+
+    /// <summary>
+    /// Enforce a concept's penalty / "X-only" upper caps: any room type over its <c>_caps</c> max is
+    /// converted to the concept-appropriate fallback type, so the defining absence (e.g. Elite Gauntlet
+    /// has no normal monsters) is reliably felt regardless of the random roll or the rest floor.
+    /// Returns how many nodes were converted.
+    /// </summary>
+    private static int CapTypes(MapConcept c, List<MapPoint> modifiable, Rng rng)
+    {
+        if (!_caps.TryGetValue(c.Key, out var caps)) return 0;
+
+        int converted = 0;
+        foreach (var (slot, max, fallback) in caps)
+        {
+            var type = Slot[slot];
+            var fb = Slot[fallback];
+            var have = modifiable.Where(p => p.PointType == type).ToList();
+            int excess = have.Count - max;
+            while (excess > 0 && have.Count > 0)
+            {
+                int idx = Math.Min(have.Count - 1, (int)(rng.NextFloat() * have.Count));
+                have[idx].PointType = fb;
+                have.RemoveAt(idx);
+                excess--; converted++;
+            }
         }
         return converted;
     }

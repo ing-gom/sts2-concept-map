@@ -64,6 +64,6 @@ public partial class MainFile : Node
             Logger.Warn($"[{ModId}] env mode failed: {ex.Message}");
         }
 
-        Logger.Info($"[{ModId}] initialized (v0.1.0).");
+        Logger.Info($"[{ModId}] initialized (v0.1.1).");
     }
 }
