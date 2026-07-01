@@ -71,6 +71,9 @@ internal static class ConceptMapService
         new("woods",    "\U0001F332", "Quiet Woods",        1, new[] { 1.4f, 0.7f, 1.6f, 0.15f, 0.6f, 0.6f }),
         new("trove",    "\U0001F5FA", "Treasure Trail",     1, new[] { 0.7f, 1.5f, 1.2f, 0.4f, 0.8f, 3f }),
         new("story",    "\U0001F4D6", "Storyteller's Path", 1, new[] { 0.35f, 4.5f, 1.2f, 0.2f, 0.5f, 0.5f }),
+        new("sanctuary","⛩",     "Sanctuary",         1, new[] { 0.6f, 1.0f, 2.0f, 0.2f, 0.7f, 0.8f }),
+        new("pilgrim",  "\U0001F56F", "Pilgrim's Road",    1, new[] { 0.5f, 2.0f, 1.7f, 0.2f, 0.4f, 0.5f }),
+        new("beast",    "\U0001F43E", "Beast Trail",       1, new[] { 1.6f, 0.6f, 1.8f, 0.5f, 0.5f, 0.5f }),
 
         // ── Tier 2 (medium — Act 2 mostly) ────────────────────────────────────────────
         new("balanced", "⚖",      "Balanced",          2, new[] { 1f, 1f, 1f, 1f, 1f, 1f }),
@@ -79,6 +82,10 @@ internal static class ConceptMapService
         new("merchant", "\U0001F4B0", "Merchant's Run",     2, new[] { 0.7f, 1f, 0.9f, 0.6f, 4.5f, 1.5f }),
         new("wild",     "\U0001F3B2", "Wildlands",          2, new[] { 0.42f, 0.93f, 1.19f, 1.39f, 2.08f, 2.08f }),
         new("trial",    "⚔",      "Trial Road",        2, new[] { 1.2f, 0.7f, 0.8f, 2.2f, 0.6f, 0.8f }),
+        new("labyrinth","\U0001F300", "Labyrinth",         2, new[] { 1.0f, 1.2f, 1.0f, 0.9f, 0.9f, 0.9f }),
+        new("oneway",   "➡",  "The Narrow Way",    2, new[] { 1.2f, 1.0f, 0.9f, 1.0f, 0.7f, 0.7f }),
+        new("gamble",   "\U0001F3B0", "Gambler's Den",     2, new[] { 0.4f, 3.5f, 0.8f, 0.4f, 0.6f, 1.2f }),
+        new("smuggler", "\U0001F3FA", "Smuggler's Cache",  2, new[] { 1.4f, 0.7f, 0.7f, 0.6f, 1.4f, 2.4f }),
 
         // ── Tier 3 (hard — Act 3+ mostly) ─────────────────────────────────────────────
         new("gauntlet", "\U0001F6E1", "Elite Gauntlet",     3, new[] { 0.3f, 0.15f, 1.0f, 6f, 0.7f, 0.4f }),
@@ -86,6 +93,7 @@ internal static class ConceptMapService
         new("grinder",  "⚙",      "The Meatgrinder",   3, new[] { 2.2f, 0.3f, 0.3f, 2.5f, 0.3f, 0.4f }),
         new("famine",   "\U0001F3DC", "Famine",             3, new[] { 2f, 0.8f, 0.2f, 1.8f, 0.1f, 0.3f }),
         new("dread",    "\U0001F480", "Dread Domain",       3, new[] { 1.6f, 0.4f, 0.35f, 3.5f, 0.2f, 0.3f }),
+        new("hoard",    "\U0001F48E", "Dragon's Hoard",    3, new[] { 0.6f, 0.4f, 0.5f, 3.0f, 2.2f, 2.5f }),
     };
 
     /// <summary>Display label for a concept: emoji + current-language name (English fallback).</summary>
@@ -94,11 +102,20 @@ internal static class ConceptMapService
     // Path density per concept (number of path-tracing walks; vanilla = 7). Conservative: choice-rich
     // concepts get MORE routes (safe — just more edges); forced concepts get slightly FEWER (down to 6,
     // not lower, to avoid under-connecting the map). Concepts not listed use the vanilla 7.
+    // EXCEPTION: The Narrow Way ("oneway") uses ONE walk on purpose — a literal single corridor (see below).
     private static readonly Dictionary<string, int> _pathCounts = new()
     {
         ["crossroads"] = 10, ["wanderer"] = 10, ["story"] = 9, ["market"] = 9,
         ["merchant"] = 8, ["trove"] = 8, ["wild"] = 8,
         ["gauntlet"] = 6, ["grinder"] = 6, ["dread"] = 6, ["famine"] = 6,
+        // New concepts: choice-rich → more routes; forced/topology-narrow → fewer.
+        ["labyrinth"] = 12, ["pilgrim"] = 9, ["gamble"] = 9,
+        ["sanctuary"] = 8, ["beast"] = 8, ["smuggler"] = 8,
+        ["hoard"] = 6,
+        // The Narrow Way is a LITERAL single road: one walk means one start node (the distinct-2nd-start
+        // rule in GeneratePaths only triggers for walk #2), so the map is a single winding path from start
+        // to boss with no route choice. PruneAndRepair keeps the already-connected chain intact.
+        ["oneway"] = 1,
     };
 
     public static int PathsFor(MapConcept c) => _pathCounts.TryGetValue(c.Key, out var n) ? n : 7;
@@ -117,6 +134,11 @@ internal static class ConceptMapService
         ["dread"] = _wStraight, ["fire"] = _wStraight,
         ["crossroads"] = _wWide, ["wanderer"] = _wWide, ["market"] = _wWide,
         ["story"] = _wWide, ["merchant"] = _wWide,
+        // New concepts. Labyrinth's whole identity is a branchy maze; Hoard is a forced elite corridor.
+        // The Narrow Way is a single walk (see _pathCounts) so it needs no straight bias — with only one
+        // path there are no crossovers to avoid, and it wanders naturally as one road. (Neutral by default.)
+        ["labyrinth"] = _wWide, ["pilgrim"] = _wWide, ["gamble"] = _wWide,
+        ["hoard"] = _wStraight,
     };
 
     private static float[] StepWeightsFor(MapConcept c) =>
@@ -142,6 +164,23 @@ internal static class ConceptMapService
         ["famine"]     = new[] { (3, 2, 0.15f) },                // some elites amid the attrition
         ["gauntlet"]   = new[] { (3, 4, 0.45f), (2, 4, 0.16f) },  // elites + a rest cadence for recovery
         ["dread"]      = new[] { (3, 4, 0.40f) },                // elites
+        ["sanctuary"]  = new[] { (2, 4, 0.16f) },                // campfires (the recovery route)
+        ["pilgrim"]    = new[] { (2, 2, 0.14f), (1, 3, 0.22f) },  // events (primary) + a generous rest cadence
+        ["beast"]      = new[] { (0, 5, 0.40f), (2, 3, 0.15f) },  // monsters + rests (hunt and recover)
+        ["gamble"]     = new[] { (1, 5, 0.40f), (5, 2, 0.0f) },   // events (?) + a treasure gamble
+        ["smuggler"]   = new[] { (5, 3, 0.0f), (0, 5, 0.30f), (4, 2, 0.10f) },  // contraband (treasures) guarded by monsters + a black-market shop
+        ["hoard"]      = new[] { (3, 3, 0.30f), (5, 2, 0.0f) },   // elites guarding treasure
+    };
+
+    // Level-SCALED signature guarantees: a minimum room-type count that grows with the map's difficulty
+    // LEVEL (I / II / III). Unlike _guarantees (fixed), these read the rolled level, so a harder map of the
+    // same concept forces MORE of its threat. Value = minimum count per level, indexed [Lv I, Lv II, Lv III].
+    // Slots: 0 Mon,1 Event,2 Rest,3 Elite,4 Shop,5 Treasure.
+    private static readonly Dictionary<string, (int slot, int[] minByLevel)[]> _levelGuarantees = new()
+    {
+        // The Narrow Way has no route choice, so its difficulty is expressed by forced elites on the single
+        // corridor: none at Lv I, one at Lv II, two at Lv III.
+        ["oneway"] = new[] { (3, new[] { 0, 1, 2 }) },
     };
 
     // Penalty / "X-only" UPPER caps: a concept whose identity is the ABSENCE of a room type caps it so a
@@ -155,6 +194,10 @@ internal static class ConceptMapService
         ["famine"]     = new[] { (2, 2, 0), (4, 1, 0) },              // rest & shop scarce → monster
         ["grinder"]    = new[] { (2, 2, 0), (4, 2, 0) },              // rest scarce → monster
         ["dread"]      = new[] { (2, 2, 3), (4, 1, 3) },              // rest & shop scarce → elite
+        ["sanctuary"]  = new[] { (3, 1, 1) },                        // safe: almost no elites → event
+        ["pilgrim"]    = new[] { (4, 0, 1) },                        // worldly shops excluded → event
+        ["gamble"]     = new[] { (0, 1, 1), (3, 1, 1) },              // little real combat → event (?)
+        ["hoard"]      = new[] { (2, 2, 3) },                        // rest scarce (greed over safety) → elite
     };
 
     /// <summary>
@@ -305,6 +348,7 @@ internal static class ConceptMapService
             }
             int forcedRest = EnsureMinimumRests(modifiable, rng);
             int forcedSig = EnsureGuarantees(concept, modifiable, rng);
+            int forcedLvl = EnsureLevelGuarantees(concept, modifiable, rng, level);
             int cappedTrez = CapExcessTreasure(modifiable, rng);
             int cappedPen = CapTypes(concept, modifiable, rng, level);
 
@@ -321,7 +365,7 @@ internal static class ConceptMapService
                     case MapPointType.Treasure: tr++; break;
                 }
             LastStats = $"act {act + 1} concept={concept.Key} Lv{level} ({modifiable.Count} free nodes, " +
-                        $"+{forcedRest} rest, +{forcedSig} sig, -{cappedTrez} trez→shop, -{cappedPen} cap) → " +
+                        $"+{forcedRest} rest, +{forcedSig} sig, +{forcedLvl} lvl, -{cappedTrez} trez→shop, -{cappedPen} cap) → " +
                         $"Mon={mon} Ev={ev} Rest={rs} Elite={el} Shop={sh} Trez={tr}";
             MainFile.Logger.Info($"[{MainFile.ModId}] {LastStats}");
         }
@@ -418,6 +462,39 @@ internal static class ConceptMapService
             var type = Slot[slot];
             int target = Math.Max(minAbs, (int)Math.Ceiling(modifiable.Count * frac));
             int need = target - modifiable.Count(p => p.PointType == type);
+            if (need <= 0) continue;
+
+            var cands = modifiable.Where(p => !protectedTypes.Contains(p.PointType)).ToList();
+            while (need > 0 && cands.Count > 0)
+            {
+                int idx = Math.Min(cands.Count - 1, (int)(rng.NextFloat() * cands.Count));
+                cands[idx].PointType = type;
+                cands.RemoveAt(idx);
+                need--; forced++;
+            }
+        }
+        return forced;
+    }
+
+    /// <summary>
+    /// Enforce a concept's LEVEL-scaled minimum room counts (see <see cref="_levelGuarantees"/>): the target
+    /// grows with the map's difficulty <paramref name="level"/> (I/II/III). Same mechanic as
+    /// <see cref="EnsureGuarantees"/> — converts random filler, never rest nor another guaranteed type — but
+    /// the minimum is read from the per-level table. Returns how many nodes were forced.
+    /// </summary>
+    private static int EnsureLevelGuarantees(MapConcept c, List<MapPoint> modifiable, Rng rng, int level)
+    {
+        if (!_levelGuarantees.TryGetValue(c.Key, out var reqs)) return 0;
+        int lvlIdx = Math.Clamp(level, 1, 3) - 1;
+
+        var protectedTypes = new HashSet<MapPointType> { MapPointType.RestSite };
+        foreach (var (s, _) in reqs) protectedTypes.Add(Slot[s]);
+
+        int forced = 0;
+        foreach (var (slot, minByLevel) in reqs)
+        {
+            var type = Slot[slot];
+            int need = minByLevel[lvlIdx] - modifiable.Count(p => p.PointType == type);
             if (need <= 0) continue;
 
             var cands = modifiable.Where(p => !protectedTypes.Contains(p.PointType)).ToList();

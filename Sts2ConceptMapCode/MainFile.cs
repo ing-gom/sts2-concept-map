@@ -50,6 +50,7 @@ public partial class MainFile : Node
         TryPatch("genmap", typeof(Patches.StandardActMap_GenerateMap_Patch));
         TryPatch("spoils", typeof(Patches.SpoilsActMap_Constructor_Patch));
         TryPatch("mapscreen", typeof(Patches.NMapScreenOpenPatch));
+        TryPatch("eventmatch", typeof(Patches.ActModel_PullNextEvent_Patch));
 
         ConceptMapService.InitStatus = string.Join(" | ", results);
         Logger.Info($"[{ModId}] patches: {ConceptMapService.InitStatus}");
@@ -64,6 +65,6 @@ public partial class MainFile : Node
             Logger.Warn($"[{ModId}] env mode failed: {ex.Message}");
         }
 
-        Logger.Info($"[{ModId}] initialized (v0.1.2).");
+        Logger.Info($"[{ModId}] initialized (v0.3.0).");
     }
 }

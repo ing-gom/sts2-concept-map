@@ -38,7 +38,9 @@ public sealed class ConceptConsoleCmd : AbstractConsoleCmd
 
         if (string.Equals(args[0], "stats", StringComparison.OrdinalIgnoreCase))
             return new CmdResult(success: true,
-                "Patches: " + ConceptMapService.InitStatus + "\nLast map: " + ConceptMapService.LastStats);
+                "Patches: " + ConceptMapService.InitStatus + "\nLast map: " + ConceptMapService.LastStats +
+                "\nEvent hook fired: " + Patches.ActModel_PullNextEvent_Patch.Calls + " time(s)" +
+                "\nLast event: " + EventConceptMatcher.LastEvent);
 
         string arg = args[0].ToLowerInvariant();
         string targetKey;
